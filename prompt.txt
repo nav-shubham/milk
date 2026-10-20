@@ -1,0 +1,82 @@
+# Milk Billing App — Android Conversion Brief
+
+## Overview
+Convert an existing Telegram bot (Python, python-telegram-bot, SQLite) into a **standalone native Android app** for personal use. No Telegram integration — the app should be fully self-contained with its own UI and on-device SQLite database. Single user, offline-first, no login/auth needed beyond normal device access.
+
+## Tech Stack (suggested, open to developer's judgment)
+- **Language:** Kotlin
+- **UI:** Jetpack Compose
+- **Database:** Room (wraps SQLite) — schema below
+- **Architecture:** MVVM, single Activity, no backend/server, no network calls required
+- **Min SDK:** reasonable modern default (e.g. API 26+)
+
+## Core Concept
+Track daily milk purchases (liters), apply date-effective rates, group entries into billing cycles, and let the user close cycles as "PAID." This directly mirrors the bot's data model — reuse it as-is.
+
+## Database Schema (carry over unchanged)
+
+**settings** — milk rate history
+- id (PK, autoincrement)
+- rate_per_liter (REAL, not null)
+- effective_date (TEXT, unique, format YYYY-MM-DD)
+
+**billing_cycles** — billing periods
+- id (PK, autoincrement)
+- cycle_number (INTEGER, unique)
+- status (TEXT: 'OPEN' or 'PAID')
+- created_at (TIMESTAMP)
+- closed_at (TIMESTAMP, nullable)
+- billed_amount (REAL, nullable — snapshot at closure)
+
+**milk_entries** — daily entries
+- id (PK, autoincrement)
+- entry_date (TEXT, unique, format YYYY-MM-DD — one entry per day)
+- liters (REAL, not null)
+- cycle_id (FK → billing_cycles.id)
+- created_at (TIMESTAMP)
+
+Rate resolution logic: for a given entry_date, use the rate whose effective_date is the latest one ≤ entry_date.
+
+## Screens / Features
+
+1. **Home / Today**
+   - Quick input: enter liters for today (numeric keypad, one tap to save)
+   - Shows today's entry if already logged, with edit option
+   - Shows current rate applicable today
+
+2. **Entry Log**
+   - List of recent entries (date, liters, rate applied, line total)
+   - Tap an entry to edit or delete
+   - Filter/search by date range
+
+3. **Current Bill**
+   - Shows the running total for the currently OPEN cycle: total liters, itemized dates/rates, total amount due
+   - "Close Cycle" action → marks cycle PAID, snapshots billed_amount, opens a new cycle
+
+4. **History**
+   - List of past billing cycles with status, date range, and billed amount
+   - Tap a cycle to see its itemized entries
+
+5. **Rates**
+   - View rate history (effective_date → rate)
+   - Add a new rate effective from a chosen date
+
+6. **Reports** (optional, nice-to-have)
+   - Summary stats: total entries, total liters, total paid across all cycles, grand total
+   - Date-range custom report
+
+## Non-Functional Requirements
+- Fully offline, no internet permission needed
+- Data persists locally; app should survive reinstall only if the user manually backs up (see below)
+- Simple manual backup/restore: export DB file or export/import as JSON, shareable via Android's share sheet (e.g. to Google Drive or email) — mirrors the bot's manual `cp` backup approach
+- Clean, minimal Material 3 UI — this is a personal utility app, not a commercial product; prioritize speed of data entry over visual polish
+- Input validation: liters must be positive numbers; prevent duplicate entries per date (offer overwrite/edit instead)
+
+## Out of Scope
+- No multi-user support, no accounts, no cloud sync
+- No Telegram bot integration of any kind
+- No push notifications (unless trivially easy to add a daily reminder — optional stretch goal)
+
+## Deliverables
+- Android Studio project, buildable APK
+- Brief README covering how to build/run and how backup/restore works
